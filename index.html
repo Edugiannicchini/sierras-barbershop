@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sierra's Barbershop — Sistema Integrado de Agendamento e Gestão</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="toast-container"></div>
+
+  <!-- CABEÇALHO -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+            <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+            <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+            <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-title">Sierra's Barbershop</span>
+          <span class="brand-sub">Sistema Integrado de Agendamento e Gestão</span>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" aria-label="Alternar módulo">
+        <button id="tab-client" class="nav-tab active" onclick="switchView('client')">Área do Cliente</button>
+        <button id="tab-admin" class="nav-tab" onclick="switchView('admin')">Painel Barbeiro (Admin)</button>
+      </nav>
+
+      <div class="nav-actions">
+        <div class="clock-sim" title="Simulador de relógio para validar a regra RN02 (2h de antecedência)">
+          <label for="sim-time-input">Relógio Sistema:</label>
+          <input type="datetime-local" id="sim-time-input" onchange="updateSimulatedTime(this.value)" />
+        </div>
+        <div id="user-session-badge" class="session-badge"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- BARRA DE ACESSO RÁPIDO (BANCA / TESTES) -->
+  <div class="demo-bar">
+    <div class="container demo-bar-inner">
+      <span><strong>Acesso Rápido (Demonstração):</strong></span>
+      <div class="demo-buttons">
+        <button class="btn-chip" onclick="quickLogin('client')">Entrar como Cliente (Eduardo)</button>
+        <button class="btn-chip btn-chip-gold" onclick="quickLogin('admin')">Entrar como Admin (Barbeiro Sierra)</button>
+        <button class="btn-chip btn-chip-muted" onclick="resetDemoDatabase()">Resetar Banco Local</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MÓDULO 1: ÁREA DO CLIENTE (RF01 - RF07) -->
+  <main id="view-client" class="container main-content">
+    <section class="hero-card">
+      <div>
+        <span class="badge-gold">ESTÉTICA MASCULINA & PRECISÃO</span>
+        <h1>Agende seu horário sem filas e sem espera.</h1>
+        <p>Escolha o serviço, selecione seu barbeiro de preferência e garanta seu horário em tempo real com confirmação instantânea.</p>
+      </div>
+      <div class="hero-rules">
+        <div class="rule-pill"><strong>RN01:</strong> Bloqueio automático de horários ocupados</div>
+        <div class="rule-pill"><strong>RN02:</strong> Cancelamento livre até 2h antes</div>
+        <div class="rule-pill"><strong>RN03:</strong> Grade sincronizada com o expediente</div>
+      </div>
+    </section>
+
+    <div class="client-grid">
+      <!-- COLUNA ESQUERDA: CATÁLOGO + AGENDAMENTO -->
+      <div class="col-main">
+        <!-- RF03: Catálogo de Serviços -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>1. Catálogo de Serviços</h2>
+              <p class="card-sub">Selecione o procedimento desejado para o atendimento</p>
+            </div>
+            <span class="tag-rf">RF03</span>
+          </div>
+          <div id="services-catalog" class="services-grid"></div>
+        </section>
+
+        <!-- RF04 & RF05: Escolha de Profissional, Data e Horário -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>2. Profissional, Data e Horário</h2>
+              <p class="card-sub">Grade atualizada em tempo real conforme disponibilidade</p>
+            </div>
+            <span class="tag-rf">RF04 • RF05</span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="barber-select">Barbeiro de Preferência</label>
+              <select id="barber-select" onchange="renderTimeSlots()">
+                <option value="Barbeiro Sierra">Barbeiro Sierra (Master)</option>
+                <option value="Barbeiro Vinicius">Barbeiro Vinicius (Especialista)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="booking-date">Data do Atendimento</label>
+              <input type="date" id="booking-date" onchange="renderTimeSlots()" />
+            </div>
+          </div>
+
+          <div class="slots-legend">
+            <span><i class="dot dot-free"></i> Disponível</span>
+            <span><i class="dot dot-selected"></i> Selecionado</span>
+            <span><i class="dot dot-busy"></i> Ocupado / Bloqueado (RN01/RN03)</span>
+          </div>
+
+          <div id="day-status-banner" class="alert-banner hidden"></div>
+          <div id="time-slots-grid" class="slots-grid"></div>
+
+          <div class="booking-summary">
+            <div id="booking-summary-text">Selecione um serviço e um horário disponível acima para continuar.</div>
+            <button id="btn-confirm-booking" class="btn-primary" onclick="confirmBooking()" disabled>Confirmar Agendamento</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- COLUNA DIREITA: CONTA / PERFIL (RF01, RF02) & HISTÓRICO (RF06, RF07) -->
+      <aside class="col-side">
+        <!-- Painel de Autenticação / Perfil -->
+        <section class="card" id="auth-profile-card"></section>
+
+        <!-- RF06 & RF07: Histórico de Atendimentos -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Meus Agendamentos</h2>
+              <p class="card-sub">Reservas futuras e histórico</p>
+            </div>
+            <span class="tag-rf">RF06 • RF07</span>
+          </div>
+          <div id="client-appointments-list" class="appointments-list"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <!-- MÓDULO 2: PAINEL ADMINISTRATIVO (RF08 - RF11) -->
+  <main id="view-admin" class="container main-content hidden">
+    <!-- Tela de Bloqueio de Perfil (Controle de Acesso) -->
+    <section id="admin-lock-screen" class="card lock-card hidden">
+      <h2>Acesso Restrito — Painel Administrativo</h2>
+      <p>Esta área é exclusiva para o perfil <strong>Barbeiro / Administrador</strong>. Faça login com uma conta gerencial para gerenciar a agenda, serviços e jornadas de trabalho.</p>
+      <form onsubmit="handleAdminLogin(event)" class="lock-form">
+        <div class="form-group">
+          <label for="admin-phone">Telefone / Login Administrativo</label>
+          <input type="text" id="admin-phone" value="(11) 99999-0000" required />
+        </div>
+        <div class="form-group">
+          <label for="admin-pass">Senha Administrativa</label>
+          <input type="password" id="admin-pass" value="admin123" required />
+        </div>
+        <button type="submit" class="btn-primary">Autenticar no Painel Admin</button>
+      </form>
+    </section>
+
+    <!-- Conteúdo do Painel Administrativo -->
+    <div id="admin-dashboard-content" class="hidden">
+      <!-- KPIs -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <span class="kpi-label">Agendamentos Hoje</span>
+          <strong id="kpi-today-count" class="kpi-value">0</strong>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Faturamento Previsto (Hoje)</span>
+          <strong id="kpi-today-revenue" class="kpi-value text-gold">R$ 0,00</strong>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Concluídos no Período</span>
+          <strong id="kpi-completed-count" class="kpi-value text-emerald">0</strong>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Serviços Ativos no Catálogo</span>
+          <strong id="kpi-services-count" class="kpi-value">0</strong>
+        </div>
+      </section>
+
+      <!-- RF08 & RF11: Agenda Diária/Semanal e Status -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Gestão da Agenda de Atendimentos</h2>
+            <p class="card-sub">Visualize compromissos e atualize status em tempo real</p>
+          </div>
+          <div class="header-controls">
+            <span class="tag-rf">RF08 • RF11</span>
+            <select id="admin-agenda-filter" onchange="renderAdminAgenda()">
+              <option value="day">Visão Diária</option>
+              <option value="week">Visão Semanal (7 dias)</option>
+              <option value="all">Todos os Registros</option>
+            </select>
+            <input type="date" id="admin-date-filter" onchange="renderAdminAgenda()" />
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data & Hora</th>
+                <th>Cliente</th>
+                <th>Serviço</th>
+                <th>Profissional</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Ações (RF11)</th>
+              </tr>
+            </thead>
+            <tbody id="admin-agenda-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="admin-bottom-grid">
+        <!-- RF09: CRUD de Serviços -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Gerenciamento de Serviços (CRUD)</h2>
+              <p class="card-sub">Alterações refletem imediatamente para o cliente</p>
+            </div>
+            <span class="tag-rf">RF09</span>
+          </div>
+
+          <form id="service-crud-form" onsubmit="saveServiceCRUD(event)" class="crud-form">
+            <input type="hidden" id="crud-service-id" />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="crud-service-name">Nome do Serviço</label>
+                <input type="text" id="crud-service-name" placeholder="Ex: Corte Degradê + Barba" required />
+              </div>
+              <div class="form-group">
+                <label for="crud-service-price">Preço (R$)</label>
+                <input type="number" id="crud-service-price" step="0.01" min="5" placeholder="65.00" required />
+              </div>
+              <div class="form-group">
+                <label for="crud-service-duration">Duração (min)</label>
+                <input type="number" id="crud-service-duration" step="5" min="10" placeholder="45" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="crud-service-desc">Descrição</label>
+              <input type="text" id="crud-service-desc" placeholder="Breve descrição do procedimento..." required />
+            </div>
+            <div class="crud-actions">
+              <button type="submit" class="btn-primary" id="btn-save-service">Salvar Serviço</button>
+              <button type="button" class="btn-secondary hidden" id="btn-cancel-edit" onclick="resetServiceForm()">Cancelar Edição</button>
+            </div>
+          </form>
+
+          <div id="admin-services-list" class="admin-services-list"></div>
+        </section>
+
+        <!-- RF10: Configuração de Jornada de Trabalho -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Configuração de Jornada (RN03)</h2>
+              <p class="card-sub">Expediente, intervalo de almoço e bloqueio de datas</p>
+            </div>
+            <span class="tag-rf">RF10</span>
+          </div>
+
+          <form onsubmit="saveScheduleConfig(event)" class="schedule-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cfg-start">Início Expediente</label>
+                <input type="time" id="cfg-start" required />
+              </div>
+              <div class="form-group">
+                <label for="cfg-end">Término Expediente</label>
+                <input type="time" id="cfg-end" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cfg-lunch-start">Início Almoço</label>
+                <input type="time" id="cfg-lunch-start" required />
+              </div>
+              <div class="form-group">
+                <label for="cfg-lunch-end">Fim Almoço</label>
+                <input type="time" id="cfg-lunch-end" required />
+              </div>
+            </div>
+            <button type="submit" class="btn-primary full-width">Atualizar Horário de Expediente</button>
+          </form>
+
+          <hr class="divider" />
+
+          <div class="block-date-box">
+            <label for="block-date-input">Bloquear Data Específica (Feriado / Folga)</label>
+            <div class="inline-group">
+              <input type="date" id="block-date-input" />
+              <button type="button" class="btn-danger" onclick="addBlockedDate()">Bloquear Dia</button>
+            </div>
+            <div id="blocked-dates-list" class="blocked-tags"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- RODAPÉ ACADÊMICO -->
+  <footer class="footer">
+    <div class="container footer-content">
+      <div>
+        <strong>Sierra's Barbershop</strong> — Documentação e Implementação de Software
+      </div>
+      <div>
+        Ciência da Computação • Projeto em Gestão de Sistemas Computacionais • <strong>Eduardo Levi Giannicchini Sierra</strong> (RA: 326200341) & <strong>Vinicius Esdras Lima Silva</strong> (RA: 326200345)
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
